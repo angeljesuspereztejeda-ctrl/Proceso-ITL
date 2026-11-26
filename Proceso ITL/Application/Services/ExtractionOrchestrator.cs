@@ -8,22 +8,25 @@ public class ExtractionOrchestrator
 {
     private readonly IEnumerable<IExtractor> _extractors;
     private readonly IDataLoader _dataLoader;
+    private readonly IDimensionLoader _dimensionLoader;
     private readonly ILoggerService _logger;
 
     public ExtractionOrchestrator(
         IEnumerable<IExtractor> extractors,
         IDataLoader dataLoader,
+        IDimensionLoader dimensionLoader,
         ILoggerService logger)
     {
         _extractors = extractors;
         _dataLoader = dataLoader;
+        _dimensionLoader = dimensionLoader;
         _logger = logger;
     }
 
     public async Task ExecuteExtractionAsync(CancellationToken cancellationToken)
     {
         var swTotal = Stopwatch.StartNew();
-        _logger.LogInfo("=== INICIANDO CICLO DE EXTRACCIÓN (E DE ETL) ===");
+        _logger.LogInfo("=== INICIANDO CICLO ETL (EXTRACCIÓN + CARGA DE DIMENSIONES) ===");
 
         var tareasExtraccion = _extractors.Select(async extractor =>
         {
@@ -53,12 +56,17 @@ public class ExtractionOrchestrator
             return;
         }
 
-        var swCarga = Stopwatch.StartNew();
+        var swStaging = Stopwatch.StartNew();
         int guardados = await _dataLoader.SaveToStagingAsync(todosLosDatos, cancellationToken);
-        swCarga.Stop();
+        swStaging.Stop();
+        _logger.LogInfo($"[DataLoader] Guardados {guardados} registros en Staging (SQL + JSON temporal) en {swStaging.ElapsedMilliseconds} ms.");
+
+        var swDims = Stopwatch.StartNew();
+        var resumenDims = await _dimensionLoader.LoadDimensionsAsync(cancellationToken);
+        swDims.Stop();
         swTotal.Stop();
 
-        _logger.LogInfo($"[DataLoader] Guardados {guardados} registros en Staging (SQL + JSON temporal) en {swCarga.ElapsedMilliseconds} ms.");
-        _logger.LogInfo($"=== CICLO COMPLETADO | Total extraído: {todosLosDatos.Count} | Tiempo total: {swTotal.ElapsedMilliseconds} ms ===");
+        _logger.LogInfo($"[DimensionLoader] Total de registros procesados en dimensiones: {resumenDims.TotalDimensiones} en {swDims.ElapsedMilliseconds} ms.");
+        _logger.LogInfo($"=== CICLO COMPLETADO | Staging: {guardados} | Dimensiones: {resumenDims.TotalDimensiones} | Tiempo total: {swTotal.ElapsedMilliseconds} ms ===");
     }
 }

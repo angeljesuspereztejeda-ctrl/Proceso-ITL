@@ -29,6 +29,7 @@ builder.Services.AddTransient<IExtractor, CsvExtractor>();
 builder.Services.AddTransient<IExtractor, DatabaseExtractor>();
 builder.Services.AddTransient<IExtractor, ApiExtractor>();
 builder.Services.AddTransient<IDataLoader, DataLoader>();
+builder.Services.AddTransient<IDimensionLoader, DimensionLoader>();
 builder.Services.AddTransient<ExtractionOrchestrator>();
 
 builder.Services.AddHostedService<Worker>();
